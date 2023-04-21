@@ -181,34 +181,22 @@ class Xls(BaseStrategy):
         # ctrl+s 保存 grid 内容为 xls 文件
         self._set_foreground(grid)  # setFocus buggy, instead of SetForegroundWindow
         grid.type_keys("^s", set_foreground=False)
-        count = 1
+        count = 10
         while count > 0:
-            if self._trader.is_exist_pop_dialog() and self._trader.app.top_window().window_text() != '另存为':
-                pop_dialog_window = self._trader.app.top_window()  # 验证码弹窗
-                pop_dialog_window.Static2.click()
-                file_path = './tmp/tmp.png'
-                pop_dialog_window.Static2.capture_as_image().save(file_path)
-                captcha_num = captcha_recognize(file_path).strip()  # 识别验证码
-                captcha_num = "".join(captcha_num.split())
-                # logger.info("captcha result-->" + captcha_num)
-                pop_dialog_window.Edit.click().type_keys("{RIGHT}" * 10).type_keys("{BACKSPACE}" * 12).type_keys(
-                    captcha_num).type_keys('{ENTER}')
-                if pop_dialog_window.wrapper_object() == self._trader.app.top_window():
-                    count = 2
-                # break
-            self._trader.wait(1)
+            if self._trader.is_exist_pop_dialog():
+                break
+            self._trader.wait(0.2)
             count -= 1
 
-        # temp_path = tempfile.mktemp(suffix=".xls", dir=self.tmp_folder)
-        temp_path = self.tmp_folder + r'\position.xls'
+        temp_path = tempfile.mktemp(suffix=".xls", dir=self.tmp_folder)
         self._set_foreground(self._trader.app.top_window())
 
         # alt+s保存，alt+y替换已存在的文件
         self._trader.app.top_window().Edit1.set_edit_text(temp_path)
-        self._trader.wait(1)
+        self._trader.wait(0.1)
         self._trader.app.top_window().type_keys("%{s}%{y}", set_foreground=False)
         # Wait until file save complete otherwise pandas can not find file
-        self._trader.wait(1)
+        self._trader.wait(0.2)
         if self._trader.is_exist_pop_dialog():
             self._trader.app.top_window().Button2.click()
             self._trader.wait(0.2)
