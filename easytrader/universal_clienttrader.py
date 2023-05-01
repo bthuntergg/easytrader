@@ -91,20 +91,53 @@ class UniversalClientTrader(clienttrader.BaseLoginClientTrader):
             # wait login window ready
             while True:
                 try:
-                    login_window = pywinauto.findwindows.find_window(class_name='#32770', found_index=1)
+                    login_window = pywinauto.findwindows.find_window(title="用户登录",class_name='#32770')
                     break
                 except:
                     self.wait(1)
 
             self.wait(1)
-            self._app.window(handle=login_window).Edit1.set_focus()
-            self._app.window(handle=login_window).Edit1.type_keys(user)
+            user_login_window = self._app.window(handle=login_window)
+            # user_login_window = self._app.window()
+            yzm = user_login_window['验 证 码(&V):Static1']
+            file_path = './tmp/tmp.png'
+            yzm.capture_as_image().save(file_path)
+            captcha_num = captcha_recognize(file_path).strip()  # 识别验证码
+            captcha_num = "".join(captcha_num.split())
 
-            self._app.window(handle=login_window).button7.click()
+            user_login_window.Edit1.set_focus()             #获取账号输入框焦点
+            user_login_window.Edit1.type_keys(user)         #输入账号
+            user_login_window.Edit2.set_focus()             #获取密码输入框焦点
+            user_login_window.Edit2.type_keys(password)     #输入密码
+            user_login_window.Edit7.set_focus()
+            user_login_window['验 证 码(&V):Edit1'].type_keys(captcha_num)  #输入验证码
+
+            try:
+                user_login_window.type_keys("%{y}", set_foreground=False)
+                user_login_window.wait_not('ready', timeout=5,retry_interval=2)
+            except Exception as e:
+                self._app.top_window().Button.click()
+                self.wait(0.2)
+                yzm = self._app.top_window()['验 证 码(&V):Static1']
+                file_path = './tmp/tmp.png'
+                yzm.capture_as_image().save(file_path)
+                captcha_num = captcha_recognize(file_path).strip()  # 识别验证码
+                captcha_num = "".join(captcha_num.split())
+                self._app.top_window().Edit7.set_focus()
+                self._app.top_window()['验 证 码(&V):Edit1'].type_keys(captcha_num)  # 输入验证码
+                self._app.top_window().type_keys("%{y}", set_foreground=False)
+
+
+
+            # user_login_window.button7.click()
+            # self._app.window(handle=login_window).Edit1.set_focus()
+            # self._app.window(handle=login_window).Edit1.type_keys(user)
+            #
+            # self._app.window(handle=login_window).button7.click()
 
             # detect login is success or not
             # self._app.top_window().wait_not("exists", 100)
-            self.wait(5)
+            self.wait(10)
 
             self._app = pywinauto.Application().connect(
                 path=self._run_exe_path(exe_path), timeout=10
