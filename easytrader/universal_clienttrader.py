@@ -9,6 +9,8 @@ from . import clienttrader
 from typing import TYPE_CHECKING, Dict, List, Optional
 from easytrader.log import logger
 from easytrader.utils.captcha import captcha_recognize
+from datetime import datetime
+import random
 
 class Xls(grid_strategies.Xls):
     """
@@ -42,23 +44,22 @@ class Xls(grid_strategies.Xls):
                     captcha_num).type_keys('{ENTER}')
                 if pop_dialog_window.wrapper_object() == self._trader.app.top_window():
                     count = 2
-                # break
-            self._trader.wait(1)
+                ## break
+            self._trader.wait(0.2)
             count -= 1
-
-        # temp_path = tempfile.mktemp(suffix=".xls", dir=self.tmp_folder)
-        temp_path = self.tmp_folder + r'\position.xls'
+        # temp_path1 = tempfile.mktemp(suffix=".xls", dir=self.tmp_folder)
+        random_str=''.join(random.sample('abcdefghijklmnopqrstuvxyz',5))
+        temp_path = self.tmp_folder + r'\tmp'+datetime.now().strftime('%Y%m%d%H%M%S')+random_str+'.xls'
         self._set_foreground(self._trader.app.top_window())
 
         # alt+s保存，alt+y替换已存在的文件
         self._trader.app.top_window().Edit1.set_edit_text(temp_path)
-        self._trader.wait(1)
         self._trader.app.top_window().type_keys("%{s}%{y}", set_foreground=False)
         # Wait until file save complete otherwise pandas can not find file
-        self._trader.wait(1)
-        if self._trader.is_exist_pop_dialog():
-            self._trader.app.top_window().Button2.click()
-            self._trader.wait(0.2)
+        self._trader.wait(0.2)
+        # if self._trader.is_exist_pop_dialog():
+        #     self._trader.app.top_window().Button2.click()
+        #     self._trader.wait(0.2)
 
         return self._format_grid_data(temp_path)
 

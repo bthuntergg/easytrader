@@ -185,7 +185,7 @@ class ClientTrader(IClientTrader):
         ).click()
         self.wait(0.2)
 
-        # 等待出现 确认兑换框
+        # 等待出现 确认对话框
         if self.is_exist_pop_dialog():
             # 点击是 按钮
             w = self._app.top_window()
@@ -431,6 +431,17 @@ class ClientTrader(IClientTrader):
         self._main.child_window(
             control_id=self._config.TRADE_SUBMIT_CONTROL_ID, class_name="Button"
         ).click()
+
+        for window in self._app.windows(class_name="#32770", visible_only=True):
+            title = window.window_text()
+            if title != self._config.TITLE:
+                # 点击是 按钮
+                w = self._app.top_window()
+                if w is not None:
+                    btn = w["是(Y)"]
+                    if btn is not None:
+                        btn.click()
+                        self.wait(0.2)
 
     @perf_clock
     def __get_top_window_pop_dialog(self):
