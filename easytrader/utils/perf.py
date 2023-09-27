@@ -3,7 +3,7 @@ import functools
 import logging
 import timeit
 
-from easytrader import logger
+from ..log import logger
 
 try:
     from time import process_time

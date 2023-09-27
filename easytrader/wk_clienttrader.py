@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pywinauto
 
-from easytrader.ht_clienttrader import HTClientTrader
+from .ht_clienttrader import HTClientTrader
 
 
 class WKClientTrader(HTClientTrader):

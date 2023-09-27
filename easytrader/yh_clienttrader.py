@@ -4,8 +4,8 @@ import tempfile
 
 import pywinauto
 
-from easytrader import clienttrader, grid_strategies
-from easytrader.utils.captcha import recognize_verify_code
+from . import clienttrader, grid_strategies
+from .utils.captcha import recognize_verify_code
 
 
 class YHClientTrader(clienttrader.BaseLoginClientTrader):

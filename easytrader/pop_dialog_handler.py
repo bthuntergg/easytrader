@@ -3,9 +3,9 @@ import re
 import time
 from typing import Optional
 
-from easytrader import exceptions
-from easytrader.utils.perf import perf_clock
-from easytrader.utils.win_gui import SetForegroundWindow, ShowWindow, win32defines
+from . import exceptions
+from .utils.perf import perf_clock
+from .utils.win_gui import SetForegroundWindow, ShowWindow, win32defines
 
 
 class PopDialogHandler:

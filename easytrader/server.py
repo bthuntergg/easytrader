@@ -1,13 +1,20 @@
 import functools
-
 from flask import Flask, jsonify, request
 
 from . import api
 from .log import logger
+import sys, os
 
 app = Flask(__name__)
 
 global_store = {}
+
+
+def root_path():
+    # Infer the root path from the run file in the project root (e.g. manage.py)
+    fn = getattr(sys.modules['__main__'], '__file__')
+    root_path = os.path.abspath(os.path.dirname(fn))
+    return root_path
 
 
 def error_handle(func):
@@ -27,9 +34,14 @@ def error_handle(func):
 @app.route("/prepare", methods=["POST"])
 @error_handle
 def post_prepare():
+    print('request',request)
+    print('获取request')
     json_data = request.get_json(force=True)
 
-    user = api.use(json_data.pop("broker"))
+    user = api.use(json_data.pop("broker"), debug=False)
+    # print('root_path',root_path)
+    # user.grid_strategy_instance.tmp_folder = root_path()
+
     user.prepare(**json_data)
 
     global_store["user"] = user
@@ -132,4 +144,4 @@ def get_exit():
 
 
 def run(port=1430):
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=True)

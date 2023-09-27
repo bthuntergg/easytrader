@@ -4,20 +4,18 @@ import threading
 import traceback
 from datetime import datetime, timedelta
 from functools import lru_cache
+from time import time
 from typing import Any, Callable, Dict
-from pathlib import Path
-
 import zmq
 import zmq.auth
-from zmq.backend.cython.constants import NOBLOCK
-from zmq.auth.thread import ThreadAuthenticator
+from pathlib import Path
 
 # Achieve Ctrl-c interrupt recv
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-KEEP_ALIVE_TOPIC: str = "_keep_alive"
-KEEP_ALIVE_INTERVAL: timedelta = timedelta(seconds=1)  # 1秒时差
-KEEP_ALIVE_TOLERANCE: timedelta = timedelta(seconds=3)  # 3秒时差
+HEARTBEAT_TOPIC = "heartbeat"
+HEARTBEAT_INTERVAL = 10
+HEARTBEAT_TOLERANCE = 30
 
 
 class RemoteException(Exception):
@@ -41,211 +39,190 @@ class RemoteException(Exception):
 class RpcServer:
     """"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Constructor
         """
-        # Save functions dict: key is fuction name, value is fuction object
-        self.__functions: Dict[str, Any] = {}
+        # Save functions dict: key is function name, value is function object
+        self._functions: Dict[str, Callable] = {}
 
         # Zmq port related
-        self.__context: zmq.Context = zmq.Context()
+        self._context: zmq.Context = zmq.Context()
 
         # Reply socket (Request–reply pattern)
-        self.__socket_rep: zmq.Socket = self.__context.socket(zmq.REP)
+        self._socket_rep: zmq.Socket = self._context.socket(zmq.REP)
 
         # Publish socket (Publish–subscribe pattern)
-        self.__socket_pub: zmq.Socket = self.__context.socket(zmq.PUB)
+        self._socket_pub: zmq.Socket = self._context.socket(zmq.PUB)
 
         # Worker thread related
-        self.__active: bool = False  # RpcServer status
-        self.__thread: threading.Thread = None  # RpcServer thread
+        self._active: bool = False  # RpcServer status
+        self._thread: threading.Thread = None  # RpcServer thread
+        self._lock: threading.Lock = threading.Lock()
 
-        # Authenticator used to ensure data security
-        self.__authenticator: ThreadAuthenticator = None
-
-        self._register(KEEP_ALIVE_TOPIC, lambda n: n)
+        # Heartbeat related
+        self._heartbeat_at: int = None
 
     def is_active(self) -> bool:
         """"""
-        return self.__active
+        return self._active
 
     def start(
             self,
             rep_address: str,
             pub_address: str,
-            server_secretkey_path: str = ""
     ) -> None:
         """
         Start RpcServer
         """
-        if self.__active:
+        if self._active:
             return
 
-        # Start authenticator
-        if server_secretkey_path:
-            self.__authenticator = ThreadAuthenticator(self.__context)
-            self.__authenticator.start()
-            self.__authenticator.configure_curve(
-                domain="*",
-                location=zmq.auth.CURVE_ALLOW_ANY
-            )
-
-            publickey, secretkey = zmq.auth.load_certificate(server_secretkey_path)
-
-            self.__socket_pub.curve_secretkey = secretkey
-            self.__socket_pub.curve_publickey = publickey
-            self.__socket_pub.curve_server = True
-
-            self.__socket_rep.curve_secretkey = secretkey
-            self.__socket_rep.curve_publickey = publickey
-            self.__socket_rep.curve_server = True
-
         # Bind socket address
-        self.__socket_rep.bind(rep_address)
-        self.__socket_pub.bind(pub_address)
+        self._socket_rep.bind(rep_address)
+        self._socket_pub.bind(pub_address)
 
         # Start RpcServer status
-        self.__active = True
+        self._active = True
 
         # Start RpcServer thread
-        self.__thread = threading.Thread(target=self.run)
-        self.__thread.start()
+        self._thread = threading.Thread(target=self.run)
+        self._thread.start()
+
+        # Init heartbeat发布时间戳 Init heartbeat publish timestamp
+        self._heartbeat_at = time() + HEARTBEAT_INTERVAL
 
     def stop(self) -> None:
         """
         Stop RpcServer
         """
-        if not self.__active:
+        if not self._active:
             return
 
         # Stop RpcServer status
-        self.__active = False
+        self._active = False
 
     def join(self) -> None:
-        # Wait for RpcServer thread to exit
-        if self.__thread and self.__thread.is_alive():
-            self.__thread.join()
-        self.__thread = None
+        # 等待RpcServer线程退出 Wait for RpcServer thread to exit
+        if self._thread and self._thread.is_alive():
+            self._thread.join()
+        self._thread = None
 
     def run(self) -> None:
         """
         Run RpcServer functions
         """
-        start = datetime.utcnow()
+        while self._active:
+            # 轮询响应套接字1秒 Poll response socket for 1 second
+            n: int = self._socket_rep.poll(1000)
+            self.check_heartbeat()
 
-        while self.__active:
-            # Use poll to wait event arrival, waiting time is 1 second (1000 milliseconds)
-            cur = datetime.utcnow()
-            delta = cur - start
-
-            if delta >= KEEP_ALIVE_INTERVAL:
-                self.publish(KEEP_ALIVE_TOPIC, cur)
-
-            if not self.__socket_rep.poll(1000):
+            if not n:
                 continue
 
-            # Receive request data from Reply socket
-            req = self.__socket_rep.recv_pyobj()
+            # 从应答套接字接收请求数据 Receive request data from Reply socket
+            req = self._socket_rep.recv_pyobj()
 
-            # Get function name and parameters
+            # 获取函数名称和参数 Get function name and parameters
             name, args, kwargs = req
 
-            # Try to get and execute callable function object; capture exception information if it fails
+            # 尝试获取并执行可调用的函数对象;如果失败，捕获异常信息 Try to get and execute callable function object; capture exception information if it fails
             try:
-                func = self.__functions[name]
-                r = func(*args, **kwargs)
-                rep = [True, r]
+                func: Callable = self._functions[name]
+                r: Any = func(*args, **kwargs)
+                rep: list = [True, r]
             except Exception as e:  # noqa
-                rep = [False, traceback.format_exc()]
+                rep: list = [False, traceback.format_exc()]
 
-            # send callable response by Reply socket
-            self.__socket_rep.send_pyobj(rep)
+            # 通过应答套接字发送可调用的响应 send callable response by Reply socket
+            self._socket_rep.send_pyobj(rep)
 
-        # Unbind socket address
-        self.__socket_pub.unbind(self.__socket_pub.LAST_ENDPOINT)
-        self.__socket_rep.unbind(self.__socket_rep.LAST_ENDPOINT)
+        # 解绑定套接字地址 Unbind socket address
+        self._socket_pub.unbind(self._socket_pub.LAST_ENDPOINT)
+        self._socket_rep.unbind(self._socket_rep.LAST_ENDPOINT)
 
     def publish(self, topic: str, data: Any) -> None:
         """
         Publish data
         """
-        self.__socket_pub.send_pyobj([topic, data])
+        with self._lock:
+            self._socket_pub.send_pyobj([topic, data])
 
     def register(self, func: Callable) -> None:
         """
         Register function
         """
-        return self._register(func.__name__, func)
+        self._functions[func.__name__] = func
 
-    def _register(self, name: str, func: Callable) -> None:
+    def check_heartbeat(self) -> None:
         """
-        Register function
+        Check whether it is required to send heartbeat.
         """
-        self.__functions[name] = func
+        now: float = time()
+        if now >= self._heartbeat_at:
+            # 发布的心跳包 Publish heartbeat
+            self.publish(HEARTBEAT_TOPIC, now)
 
-    def __del__(self):
-        self.__thread = None
-        self.__socket_pub = None
-        self.__socket_rep = None
-        self.__context = None
-        self.__active = False
+            # 更新下次发布的时间戳Update timestamp of next publish
+            self._heartbeat_at = now + HEARTBEAT_INTERVAL
 
 
 class RpcClient:
     """"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Constructor"""
         # zmq port related
-        self.__context: zmq.Context = zmq.Context()
+        self._context: zmq.Context = zmq.Context()
 
-        # Request socket (Request–reply pattern)
-        self.__socket_req: zmq.Socket = self.__context.socket(zmq.REQ)
+        # 请求套接字(请求-应答模式) Request socket (Request–reply pattern)
+        self._socket_req: zmq.Socket = self._context.socket(zmq.REQ)
 
-        # Subscribe socket (Publish–subscribe pattern)
-        self.__socket_sub: zmq.Socket = self.__context.socket(zmq.SUB)
+        # 订阅套接字(发布-订阅模式) Subscribe socket (Publish–subscribe pattern)
+        self._socket_sub: zmq.Socket = self._context.socket(zmq.SUB)
 
-        # Worker thread relate, used to process data pushed from server
-        self.__active: bool = False  # RpcClient status
-        self.__thread: threading.Thread = None  # RpcClient thread
-        self.__lock: threading.Lock = threading.Lock()
+        # 设置socket选项为keepalive Set socket option to keepalive
+        for socket in [self._socket_req, self._socket_sub]:
+            socket.setsockopt(zmq.TCP_KEEPALIVE, 1)
+            socket.setsockopt(zmq.TCP_KEEPALIVE_IDLE, 60)
 
-        # Authenticator used to ensure data security
-        self.__authenticator: ThreadAuthenticator = None
+        # 工作线程相关，用于处理从服务器推送的数据 Worker thread relate, used to process data pushed from server
+        self._active: bool = False  # RpcClient status
+        self._thread: threading.Thread = None  # RpcClient thread
+        self._lock: threading.Lock = threading.Lock()
 
         self._last_received_ping: datetime = datetime.utcnow()
 
-    def call_func(self, name, json):
-        # getaattr(module_name, function_name)，module_name传self即可
-        be_called_function = getattr(self, name)
-        # 就直接调用。如果有其他参数，一样地传就好了
-        return be_called_function(json)
-
-    def set_timeout(self, timeout):
-        timeout = int(timeout * 1000)
-        # 设置发送超时10秒
-        self.__socket_req.setsockopt(zmq.SNDTIMEO, timeout)
-        # 设置接收超时为10秒
-        self.__socket_req.setsockopt(zmq.RCVTIMEO, timeout)
-
     @lru_cache(100)
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         """
         Realize remote call function
         """
 
         # 执行远程调用任务 Perform remote call task
         def dorpc(*args, **kwargs):
-            # 生成请求 Generate request
-            req = [name, args, kwargs]
-            # 发送请求并等待返回
-            # print('发送请求并等待返回')
-            with self.__lock:
-                self.__socket_req.send_pyobj(req)
-                rep = self.__socket_req.recv_pyobj()
-            # Return response if successed; Trigger exception if failed
+            # 从kwargs中获取超时值，默认值为30秒 Get timeout value from kwargs, default value is 30 seconds
+            if "timeout" in kwargs:
+                timeout = kwargs.pop("timeout")
+            else:
+                timeout = 30000
 
+            # Generate request
+            req: list = [name, args, kwargs]
+
+            # 发送请求并等待响应 Send request and wait for response
+            with self._lock:
+                self._socket_req.send_pyobj(req)
+
+                # 超时，没有任何数据 Timeout reached without any data
+                n: int = self._socket_req.poll(timeout)
+                if not n:
+                    msg: str = f"Timeout of {timeout}ms reached for {req}"
+                    raise RemoteException(msg)
+
+                rep = self._socket_req.recv_pyobj()
+
+            # 如果成功返回响应;失败时触发异常 Return response if successed; Trigger exception if failed
             if rep[0]:
                 return rep[1]
             else:
@@ -256,46 +233,24 @@ class RpcClient:
     def start(
             self,
             req_address: str,
-            sub_address: str,
-            client_secretkey_path: str = "",
-            server_publickey_path: str = ""
+            sub_address: str
     ) -> None:
         """
         Start RpcClient
         """
-        if self.__active:
+        if self._active:
             return
 
-        # Start authenticator
-        if client_secretkey_path and server_publickey_path:
-            self.__authenticator = ThreadAuthenticator(self.__context)
-            self.__authenticator.start()
-            self.__authenticator.configure_curve(
-                domain="*",
-                location=zmq.auth.CURVE_ALLOW_ANY
-            )
-
-            publickey, secretkey = zmq.auth.load_certificate(client_secretkey_path)
-            serverkey, _ = zmq.auth.load_certificate(server_publickey_path)
-
-            self.__socket_sub.curve_secretkey = secretkey
-            self.__socket_sub.curve_publickey = publickey
-            self.__socket_sub.curve_serverkey = serverkey
-
-            self.__socket_req.curve_secretkey = secretkey
-            self.__socket_req.curve_publickey = publickey
-            self.__socket_req.curve_serverkey = serverkey
-
         # Connect zmq port
-        self.__socket_req.connect(req_address)
-        self.__socket_sub.connect(sub_address)
+        self._socket_req.connect(req_address)
+        self._socket_sub.connect(sub_address)
 
         # Start RpcClient status
-        self.__active = True
+        self._active = True
 
         # Start RpcClient thread
-        self.__thread = threading.Thread(target=self.run)
-        self.__thread.start()
+        self._thread = threading.Thread(target=self.run)
+        self._thread.start()
 
         self._last_received_ping = datetime.utcnow()
 
@@ -303,50 +258,40 @@ class RpcClient:
         """
         Stop RpcClient
         """
-        if not self.__active:
+        if not self._active:
             return
 
         # Stop RpcClient status
-        self.__active = False
+        self._active = False
 
     def join(self) -> None:
         # Wait for RpcClient thread to exit
-        if self.__thread and self.__thread.is_alive():
-            self.__thread.join()
-        self.__thread = None
-
-    def close(self):
-        """close receiver, exit"""
-        self.stop()
-        self.join()
+        if self._thread and self._thread.is_alive():
+            self._thread.join()
+        self._thread = None
 
     def run(self) -> None:
         """
         Run RpcClient function
         """
-        pull_tolerance = int(KEEP_ALIVE_TOLERANCE.total_seconds() * 1000)
-        while self.__active:
-            if not self.__socket_sub.poll(pull_tolerance):
-                # self._on_unexpected_disconnected()
+        pull_tolerance: int = HEARTBEAT_TOLERANCE * 1000
+        while self._active:
+            if not self._socket_sub.poll(pull_tolerance):
+                self.on_disconnected()
                 continue
 
-            # 从订阅套接字接收数据 Receive data from subscribe socket
-            topic, data = self.__socket_sub.recv_pyobj(flags=NOBLOCK)
+            # Receive data from subscribe socket
+            topic, data = self._socket_sub.recv_pyobj(flags=zmq.NOBLOCK)
 
-            if topic == KEEP_ALIVE_TOPIC:
-                self._last_received_ping = data  # 没有数据，更新上一次接收时间
+            if topic == HEARTBEAT_TOPIC:
+                self._last_received_ping = data
             else:
                 # Process data by callable function
                 self.callback(topic, data)
 
         # Close socket
-        self.__socket_req.close()
-        self.__socket_sub.close()
-
-    @staticmethod
-    def _on_unexpected_disconnected():
-        print("RpcServer has no response over {tolerance} seconds, please check you connection."
-              .format(tolerance=KEEP_ALIVE_TOLERANCE.total_seconds()))
+        self._socket_req.close()
+        self._socket_sub.close()
 
     def callback(self, topic: str, data: Any) -> None:
         """
@@ -358,7 +303,14 @@ class RpcClient:
         """
         Subscribe data
         """
-        self.__socket_sub.setsockopt_string(zmq.SUBSCRIBE, topic)
+        self._socket_sub.setsockopt_string(zmq.SUBSCRIBE, topic)
+
+    def on_disconnected(self):
+        """
+        Callback when heartbeat is lost.
+        """
+        msg: str = f"RpcServer超过 {HEARTBEAT_TOLERANCE} 秒没有响,请检查您的连接。"
+        print(msg)
 
 
 def generate_certificates(name: str) -> None:

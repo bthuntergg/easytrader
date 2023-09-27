@@ -7,9 +7,9 @@ import time
 
 import requests
 
-from easytrader import exceptions, webtrader
-from easytrader.log import logger
-from easytrader.utils.misc import parse_cookies_str
+from . import exceptions, webtrader
+from .log import logger
+from .utils.misc import parse_cookies_str
 
 
 class XueQiuTrader(webtrader.WebTrader):

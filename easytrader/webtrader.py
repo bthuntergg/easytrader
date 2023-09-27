@@ -9,10 +9,10 @@ from threading import Thread
 import requests
 import requests.exceptions
 
-from easytrader import exceptions
-from easytrader.log import logger
-from easytrader.utils.misc import file2dict, str2num
-from easytrader.utils.stock import get_30_date
+from . import exceptions
+from .log import logger
+from .utils.misc import file2dict, str2num
+from .utils.stock import get_30_date
 
 
 # noinspection PyIncorrectDocstring

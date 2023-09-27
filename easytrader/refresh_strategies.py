@@ -10,13 +10,13 @@ import pywinauto.keyboard
 import pywinauto
 import pywinauto.clipboard
 
-from easytrader.log import logger
-from easytrader.utils.captcha import captcha_recognize
-from easytrader.utils.win_gui import SetForegroundWindow, ShowWindow, win32defines
+from .log import logger
+from .utils.captcha import captcha_recognize
+from .utils.win_gui import SetForegroundWindow, ShowWindow, win32defines
 
 if TYPE_CHECKING:
     # pylint: disable=unused-import
-    from easytrader import clienttrader
+    from . import clienttrader
 
 
 class IRefreshStrategy(abc.ABC):
