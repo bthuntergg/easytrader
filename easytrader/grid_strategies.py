@@ -10,13 +10,13 @@ import pywinauto.keyboard
 import pywinauto
 import pywinauto.clipboard
 
-from easytrader.log import logger
-from easytrader.utils.captcha import captcha_recognize
-from easytrader.utils.win_gui import SetForegroundWindow, ShowWindow, win32defines
+from .log import logger
+from .utils.captcha import captcha_recognize
+from .utils.win_gui import SetForegroundWindow, ShowWindow, win32defines
 
 if TYPE_CHECKING:
     # pylint: disable=unused-import
-    from easytrader import clienttrader
+    from . import clienttrader
 
 
 class IGridStrategy(abc.ABC):
@@ -78,7 +78,10 @@ class Copy(BaseStrategy):
     def get(self, control_id: int) -> List[Dict]:
         grid = self._get_grid(control_id)
         self._set_foreground(grid)
-        grid.type_keys("^A^C", set_foreground=False)
+        self._trader.app.top_window().click_input(button='right')
+        self._trader.app.top_window().menu_item('复制').click_input()
+        # exit()
+        # grid.type_keys("^C", set_foreground=False)
         content = self._get_clipboard_data()
         return self._format_grid_data(content)
 
@@ -95,59 +98,54 @@ class Copy(BaseStrategy):
             Copy._need_captcha_reg = True
 
     def _get_clipboard_data(self) -> str:
+        Copy._need_captcha_reg = True
         if Copy._need_captcha_reg:
-            if (
-                    self._trader.app.top_window().window(class_name="Static", title_re="验证码").exists(timeout=1)
-            ):
+            curr_window = self._trader.app.top_window()
+            if curr_window.window(class_name="Static", title_re="验证码").exists(timeout=2):
                 file_path = "tmp.png"
-                count = 5
+                count = 10
                 found = False
+
                 while count > 0:
-                    self._trader.app.top_window().window(
-                        control_id=0x965, class_name="Static"
-                    ).capture_as_image().save(
-                        file_path
-                    )  # 保存验证码
+                    curr_window.Static2.capture_as_image().save(file_path)  # 保存验证码
 
                     captcha_num = captcha_recognize(file_path).strip()  # 识别验证码
                     captcha_num = "".join(captcha_num.split())
-                    logger.info("captcha result-->" + captcha_num)
+                    # logger.info("验证码 结果-->" + captcha_num)
                     if len(captcha_num) == 4:
-                        self._trader.app.top_window().window(
-                            control_id=0x964, class_name="Edit"
-                        ).set_text(
-                            captcha_num
-                        )  # 模拟输入验证码
-
-                        self._trader.app.top_window().set_focus()
-                        pywinauto.keyboard.SendKeys("{ENTER}")  # 模拟发送enter，点击确定
-                        try:
-                            logger.info(
-                                self._trader.app.top_window()
-                                    .window(control_id=0x966, class_name="Static")
-                                    .window_text()
-                            )
-                        except Exception as ex:  # 窗体消失
-                            logger.exception(ex)
+                        curr_window.Edit.set_focus()
+                        curr_window.Edit.click().type_keys("{RIGHT}" * 5).type_keys("{BACKSPACE}" * 5).type_keys(captcha_num)  # 模拟输入验证码
+                        self._trader.wait(0.1)
+                        pywinauto.keyboard.send_keys("{ENTER}")  # 模拟发送enter，点击确定
+                        if not curr_window.window(class_name="Static", title_re="验证码").exists(timeout=1):
                             found = True
                             break
+                        # try:
+                        #     logger.info('验证成功')
+                        #     result=self._trader.app.top_window().window(class_name="Static", title_re="验证码").exists(timeout=0.5)
+                        #     print('result',result)
+                        #     # print('test1',test1)
+                        # except Exception as ex:  # 窗体消失
+                        #     logger.exception(ex)
+                        #     found = True
+                        #     break
                     count -= 1
-                    self._trader.wait(0.1)
-                    self._trader.app.top_window().window(
-                        control_id=0x965, class_name="Static"
-                    ).click()
+                    # self._trader.wait(0.1)
+                    # 验证错误，刷新验证码
+                    curr_window.window(control_id=0x965, class_name="Static").click()
+
                 if not found:
-                    self._trader.app.top_window().Button2.click()  # 点击取消
+                    curr_window.Button2.click()  # 点击取消
             else:
                 Copy._need_captcha_reg = False
-        count = 5
+        count = 2
         while count > 0:
             try:
                 return pywinauto.clipboard.GetData()
             # pylint: disable=broad-except
             except Exception as e:
                 count -= 1
-                logger.exception("%s, retry ......", e)
+                logger.exception("%s, 重试 ......", e)
 
 
 class WMCopy(Copy):

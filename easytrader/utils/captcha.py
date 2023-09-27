@@ -21,7 +21,7 @@ def captcha_recognize(img_path):
 
     out = im.point(table, "1")
     # 2. recognize with tesseract
-    num = pytesseract.image_to_string(out)
+    num = pytesseract.image_to_string(out, config='--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789')
     return num
 
 

@@ -4,11 +4,11 @@ import sys
 
 import six
 
-from easytrader.joinquant_follower import JoinQuantFollower
-from easytrader.log import logger
-from easytrader.ricequant_follower import RiceQuantFollower
-from easytrader.xq_follower import XueQiuFollower
-from easytrader.xqtrader import XueQiuTrader
+from .joinquant_follower import JoinQuantFollower
+from .log import logger
+from .ricequant_follower import RiceQuantFollower
+from .xq_follower import XueQiuFollower
+from .xqtrader import XueQiuTrader
 
 if sys.version_info <= (3, 5):
     raise TypeError("不支持 Python3.5 及以下版本，请升级")
@@ -44,12 +44,12 @@ def use(broker, debug=False, **kwargs):
         return HTClientTrader()
 
     if broker.lower() in ["wk_client", "五矿客户端"]:
-        from easytrader.wk_clienttrader import WKClientTrader
+        from .wk_clienttrader import WKClientTrader
 
         return WKClientTrader()
 
     if broker.lower() in ["htzq_client", "海通证券客户端"]:
-        from easytrader.htzq_clienttrader import HTZQClientTrader
+        from .htzq_clienttrader import HTZQClientTrader
 
         return HTZQClientTrader()
 
@@ -64,7 +64,7 @@ def use(broker, debug=False, **kwargs):
         return GFClientTrader()
 
     if broker.lower() in ["universal_client", "通用同花顺客户端"]:
-        from easytrader.universal_clienttrader import UniversalClientTrader
+        from .universal_clienttrader import UniversalClientTrader
 
         return UniversalClientTrader()
 

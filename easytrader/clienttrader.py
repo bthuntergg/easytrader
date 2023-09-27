@@ -13,13 +13,13 @@ import hashlib, binascii
 import easyutils
 from pywinauto import findwindows, timings
 
-from easytrader import grid_strategies, pop_dialog_handler, refresh_strategies
-from easytrader.config import client
-from easytrader.grid_strategies import IGridStrategy
-from easytrader.log import logger
-from easytrader.refresh_strategies import IRefreshStrategy
-from easytrader.utils.misc import file2dict
-from easytrader.utils.perf import perf_clock
+from . import grid_strategies, pop_dialog_handler, refresh_strategies
+from .config import client
+from .grid_strategies import IGridStrategy
+from .log import logger
+from .refresh_strategies import IRefreshStrategy
+from .utils.misc import file2dict
+from .utils.perf import perf_clock
 
 if not sys.platform.startswith("darwin"):
     import pywinauto
@@ -169,6 +169,7 @@ class ClientTrader(IClientTrader):
     @perf_clock
     def cancel_entrust(self, entrust_no):
         self.refresh()
+
         for i, entrust in enumerate(self.cancel_entrusts):
             if entrust[self._config.CANCEL_ENTRUST_ENTRUST_FIELD] == entrust_no:
                 self._cancel_entrust_by_double_click(i)
@@ -179,6 +180,7 @@ class ClientTrader(IClientTrader):
         self.refresh()
         self._switch_left_menus(["撤单[F3]"])
 
+        grid_data = self._get_grid_data(self._config.COMMON_GRID_CONTROL_ID)
         # 点击全部撤销控件
         self._app.top_window().child_window(
             control_id=self._config.TRADE_CANCEL_ALL_ENTRUST_CONTROL_ID, class_name="Button", title_re="""全撤.*"""
@@ -197,6 +199,8 @@ class ClientTrader(IClientTrader):
 
         # 如果出现了确认窗口
         self.close_pop_dialog()
+
+        return grid_data
 
     @perf_clock
     def repo(self, security, price, amount, **kwargs):
@@ -320,9 +324,23 @@ class ClientTrader(IClientTrader):
                 return
         raise TypeError("不支持对应的市场类型: {}".format(ttype))
 
-    def auto_ipo(self):
-        self._switch_left_menus(self._config.AUTO_IPO_MENU_PATH)
+    def auto_repurchase(self):
+        """
+        国债逆回购
+        @rtype: object
+        """
+        self._switch_left_menus(["查询[F4]"])
+        self._switch_left_menus(["国债逆回购"])
+        self.wait(0.3)
 
+        self._app.top_window().double_click_input(coords=(140,100)) #一天期
+        self._app.top_window().double_click_input(coords=(140,375)) #出借
+        self._app.top_window().double_click_input(coords=(280,295)) #确认
+        self._app.top_window().double_click_input(coords=(355,343)) #关闭
+
+    def auto_ipo(self):
+
+        self._switch_left_menus(self._config.AUTO_IPO_MENU_PATH)
         stock_list = self._get_grid_data(self._config.COMMON_GRID_CONTROL_ID)
 
         if len(stock_list) == 0:
@@ -415,7 +433,6 @@ class ClientTrader(IClientTrader):
         self._set_trade_params(security, price, amount)
 
         self._submit_trade()
-
         return self._handle_pop_dialogs(
             handler_class=pop_dialog_handler.TradePopDialogHandler
         )
@@ -427,13 +444,13 @@ class ClientTrader(IClientTrader):
 
     @perf_clock
     def _submit_trade(self):
-        time.sleep(0.2)
         self._main.child_window(
             control_id=self._config.TRADE_SUBMIT_CONTROL_ID, class_name="Button"
         ).click()
 
         for window in self._app.windows(class_name="#32770", visible_only=True):
             title = window.window_text()
+
             if title != self._config.TITLE:
                 # 点击是 按钮
                 w = self._app.top_window()
@@ -566,7 +583,7 @@ class ClientTrader(IClientTrader):
         self._app.top_window().child_window(
             control_id=self._config.COMMON_GRID_CONTROL_ID,
             class_name="CVirtualGridCtrl",
-        ).double_click(coords=(x, y))
+        ).double_click_input(coords=(x, y))
 
     def refresh(self):
         self.refresh_strategy.set_trader(self)
@@ -574,6 +591,7 @@ class ClientTrader(IClientTrader):
 
     @perf_clock
     def _handle_pop_dialogs(self, handler_class=pop_dialog_handler.PopDialogHandler):
+
         handler = handler_class(self._app)
 
         while self.is_exist_pop_dialog():

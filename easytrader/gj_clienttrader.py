@@ -6,8 +6,8 @@ import time
 import pywinauto
 import pywinauto.clipboard
 
-from easytrader import clienttrader
-from easytrader.utils.captcha import recognize_verify_code
+from . import clienttrader
+from .utils.captcha import recognize_verify_code
 
 
 class GJClientTrader(clienttrader.BaseLoginClientTrader):

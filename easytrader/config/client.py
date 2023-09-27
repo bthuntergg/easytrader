@@ -50,10 +50,14 @@ class CommonConfig:
 
     BALANCE_CONTROL_ID_GROUP = {
         "资金余额": 1012,
+        "冻结金额": 1013,
         "可用金额": 1016,
         "可取金额": 1017,
         "股票市值": 1014,
         "总资产": 1015,
+        "持仓盈亏": 1027,
+        "当日盈亏": 1026,
+        "当日盈亏比": 1029,
     }
 
     POP_DIALOD_TITLE_CONTROL_ID = 1365
@@ -71,7 +75,7 @@ class CommonConfig:
     }
 
     CANCEL_ENTRUST_ENTRUST_FIELD = "合同编号"
-    CANCEL_ENTRUST_GRID_LEFT_MARGIN = 50
+    CANCEL_ENTRUST_GRID_LEFT_MARGIN = 100
     CANCEL_ENTRUST_GRID_FIRST_ROW_HEIGHT = 30
     CANCEL_ENTRUST_GRID_ROW_HEIGHT = 16
 
@@ -184,10 +188,18 @@ class UNIVERSAL(CommonConfig):
     DEFAULT_EXE_PATH = r"c:\\ths\\xiadan.exe"
 
     BALANCE_CONTROL_ID_GROUP = {
+        # "资金余额": 1012,
+        # "可用金额": 1016,
+        # "可取金额": 1017,
+        # "总资产": 1015,
         "资金余额": 1012,
+        "冻结金额": 1013,
         "可用金额": 1016,
         "可取金额": 1017,
+        "股票市值": 1014,
         "总资产": 1015,
+        "持仓盈亏": 1027,
+        "当日盈亏": 1026,
     }
 
     AUTO_IPO_NUMBER = '可申购数量'

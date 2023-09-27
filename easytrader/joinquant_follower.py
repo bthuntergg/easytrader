@@ -2,9 +2,9 @@
 from datetime import datetime
 from threading import Thread
 
-from easytrader import exceptions
-from easytrader.follower import BaseFollower
-from easytrader.log import logger
+from . import exceptions
+from .follower import BaseFollower
+from .log import logger
 
 
 class JoinQuantFollower(BaseFollower):

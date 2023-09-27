@@ -11,8 +11,8 @@ from typing import List
 
 import requests
 
-from easytrader import exceptions
-from easytrader.log import logger
+from . import exceptions
+from .log import logger
 
 
 class BaseFollower(metaclass=abc.ABCMeta):

@@ -3,7 +3,7 @@
 import pywinauto
 import pywinauto.clipboard
 
-from easytrader import grid_strategies
+from . import grid_strategies
 from . import clienttrader
 
 
