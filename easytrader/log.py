@@ -3,7 +3,8 @@ import logging
 # 创建日志记录器
 logger = logging.getLogger("easytrader")
 # 记录日志级别
-logger.setLevel(logging.INFO)
+# logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger.propagate = False
 # 创建格式化程序
 fmt = logging.Formatter(

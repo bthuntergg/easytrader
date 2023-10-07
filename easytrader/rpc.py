@@ -15,7 +15,7 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 HEARTBEAT_TOPIC = "heartbeat"
 HEARTBEAT_INTERVAL = 10
-HEARTBEAT_TOLERANCE = 30
+HEARTBEAT_TOLERANCE = 60
 
 
 class RemoteException(Exception):

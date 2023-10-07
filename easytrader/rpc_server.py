@@ -56,15 +56,19 @@ class ThsRpcServer(RpcServer):
         json_data.pop('kwargs')
         user = api.use(json_data.pop("broker"), debug=False)
 
-        user.prepare(**json_data)
+        res = user.prepare(**json_data)
         global_store["user"] = user
-        # print(global_store)
-        return {"msg": "login success"}, 201
+        if res:
+            logger.info('rpc_server prepare执行成功')
+            return True, 200
+        else:
+            logger.info('rpc_server prepare执行失败')
+            return False, 400
 
     @error_handle
     def balance(self, request):
         user = global_store["user"]
-        user.main().maximize()
+        user._main.set_focus()
         balance = user.balance
 
         # print('balance',balance)
@@ -73,7 +77,7 @@ class ThsRpcServer(RpcServer):
     @error_handle
     def position(self, request):
         user = global_store["user"]
-        user.main().maximize()
+        user._main.set_focus()
         position = user.position
         # print('position',position)
         return position, 200
@@ -81,7 +85,7 @@ class ThsRpcServer(RpcServer):
     @error_handle
     def auto_ipo(self, request):
         user = global_store["user"]
-        user.main().maximize()
+        user._main.set_focus()
         res = user.auto_ipo()
 
         return res, 200
@@ -89,7 +93,7 @@ class ThsRpcServer(RpcServer):
     @error_handle
     def today_entrusts(self, request):
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         today_entrusts = user.today_entrusts
 
         return today_entrusts, 200
@@ -97,7 +101,7 @@ class ThsRpcServer(RpcServer):
     @error_handle
     def today_trades(self, request):
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         today_trades = user.today_trades
 
         return today_trades, 200
@@ -105,7 +109,7 @@ class ThsRpcServer(RpcServer):
     @error_handle
     def cancel_entrusts(self, request):
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         cancel_entrusts = user.cancel_entrusts
 
         return cancel_entrusts, 200
@@ -115,7 +119,7 @@ class ThsRpcServer(RpcServer):
         # json_data = request.get_json(force=True)
         json_data = request
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         res = user.buy(**json_data)
 
         return res, 201
@@ -126,7 +130,7 @@ class ThsRpcServer(RpcServer):
         json_data = request
 
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         res = user.sell(**json_data)
 
         return res, 201
@@ -137,7 +141,7 @@ class ThsRpcServer(RpcServer):
         json_data = request
 
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         res = user.cancel_entrust(**json_data)
 
         return res, 201
@@ -145,7 +149,7 @@ class ThsRpcServer(RpcServer):
     @error_handle
     def exit(self, request):
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         user.exit()
 
         return {"msg": "exit success"}, 200
@@ -154,7 +158,7 @@ class ThsRpcServer(RpcServer):
     def hangqing(self, request):
         json_data = request
         user = global_store["user"]
-        user.main().maximize()
+        # user.main().set_focus()
         data = user.hangqing(**json_data)
 
         return data, 200

@@ -547,6 +547,7 @@ class ClientTrader(IClientTrader):
     @perf_clock
     def _switch_left_menus(self, path, sleep=0.2):
         self.close_pop_dialog()
+        self._get_left_menus_handle().wait('ready', 2)
         self._get_left_menus_handle().get_item(path).select()
         self._app.top_window().type_keys('{F5}')
         self.wait(sleep)
@@ -571,7 +572,7 @@ class ClientTrader(IClientTrader):
                 return handle
             # pylint: disable=broad-except
             except Exception as ex:
-                logger.exception("error occurred when trying to get left menus")
+                logger.exception("尝试获取左侧菜单时发生错误,"+str(ex))
             count = count - 1
 
     def _cancel_entrust_by_double_click(self, row):
@@ -636,7 +637,7 @@ class BaseLoginClientTrader(ClientTrader):
             password = account["password"]
             comm_password = account.get("comm_password")
             exe_path = account.get("exe_path")
-        self.login(
+        res = self.login(
             user,
             password,
             exe_path or self._config.DEFAULT_EXE_PATH,
@@ -644,3 +645,10 @@ class BaseLoginClientTrader(ClientTrader):
             **kwargs
         )
         self._init_toolbar()
+
+        if res:
+            logger.info('prepare函数执行成功')
+            return True
+        else:
+            logger.info('prepare函数执行失败')
+            return False

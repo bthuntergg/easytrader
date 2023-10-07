@@ -3,8 +3,8 @@ import requests
 
 from .utils.misc import file2dict
 from .rpc import RpcClient
-
-TIMEOUT = 30
+from .log import logger
+TIMEOUT = 60
 
 
 class RemoteClient:
@@ -45,7 +45,8 @@ class RemoteClient:
         # prepare需要启动同花顺客户端，需要的时间比较长，所以超时给长一些时间
         response = self._s.post(self._api + "/prepare", json=params, timeout=TIMEOUT)
         if response.status_code >= 300:
-            raise Exception(response.json()["error"])
+            logger.error('prepare' + response.json()["error"])
+            # raise Exception(response.json()["error"])
 
         return response.json()
 
@@ -78,7 +79,9 @@ class RemoteClient:
     def common_get(self, endpoint):
         response = self._s.get(self._api + "/" + endpoint, timeout=TIMEOUT)
         if response.status_code >= 300:
-            print(Exception(response.json()["error"]))
+            logger.error('common_get' + response.json()["error"])
+            # print(Exception(response.json()["error"]))
+            raise Exception(response.json()["error"])
         return response.json()
 
     def hangqing(self, name=''):

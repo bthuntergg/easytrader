@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import subprocess
 import time
 
@@ -157,34 +158,32 @@ class UniversalClientTrader(clienttrader.BaseLoginClientTrader):
 
         self._editor_need_type_keys = True
         try:
-            # self.ths_app = pywinauto.Application().start(r"runas /profile /savecred  /user:desktop-i1u6b21\bthun  D:/同花顺软件/同花顺/hexin.exe",wait_for_idle=False)
             command = r'runas /profile /savecred /user:desktop-i1u6b21\bthun D:\同花顺软件\同花顺\hexin.exe'
             subprocess.Popen(command, shell=True)
-            self.wait(3)
+            self.wait(5)
             self.ths_app = pywinauto.Application().connect(path=r'D:\同花顺软件\同花顺\hexin.exe')
+
             handle = pywinauto.findwindows.find_window(title='网上股票交易系统5.0')
-            # print('句柄',handle)
+            # handle.wait("ready", 5)
+            print(handle)
+            logger.info('handle:'+handle)
             if handle == 0:
+                logger.info('找不到窗口')
                 raise Exception(f'找不到窗口')
             else:
                 self._app = pywinauto.Application().connect(path=self._run_exe_path(exe_path), timeout=2)
-
-            # print('self._run_exe_path(exe_path)')
-            # 'exists', 'visible', 'enabled', 'ready', 'active'
-            # verify = self._app.window(title="网上股票交易系统5.0").wait('visible',1)
-            # print(verify)
         # pylint: disable=broad-except
         except Exception as e:
-            logger.error('错误：'+str(e))
+            logger.error('同花顺客户端启动错误：'+str(e))
             ths_window = self.ths_app.window(title_re="同花顺(.*?)")
             if 'login_type' in kwargs.keys() and kwargs['login_type'] != '中信建投':
                 ths_window.menu_select("交易->模拟炒股（M）")
-                # logger.fatal(str(ths_window.PrintControlIdentifiers()))
             else:
                 ths_window.menu_select("交易->中信建投")
-                self.wait(2)
+                self.wait(5)
                 desktop = pywinauto.Desktop()
                 self._app = desktop['用户登录']
+                # self._app.wait("ready", 5)
                 while True:
                     try:
                         login_window = pywinauto.findwindows.find_window(title="用户登录", class_name='#32770')
@@ -194,8 +193,6 @@ class UniversalClientTrader(clienttrader.BaseLoginClientTrader):
 
                 self.wait(0.1)
                 user_login_window = self._app.window(handle=login_window)
-                # user_login_window = self._app.window()
-
                 # yzm = user_login_window['验 证 码(&V):Static1']
                 yzm = user_login_window.child_window(class_name="Static", best_match='验 证 码(&V):Static1')
                 file_path = './tmp/tmp.png'
@@ -212,12 +209,18 @@ class UniversalClientTrader(clienttrader.BaseLoginClientTrader):
                 # print(user_login_window.PrintControlIdentifiers())
                 self.wait(0.2)
                 user_login_window.child_window(best_match='确定(&Y)Button').click_input()
-
-            self.wait(5)
+                self.wait(5)
+        try:
             self._app = pywinauto.Application().connect(path=self._run_exe_path(exe_path), timeout=3)
+            # self._app.wait("ready", 5)
+        except Exception as e:
+            logger.error('pywinauto连接同花顺错误：' + str(e))
+            return False
 
-            self._close_prompt_windows()
+        self._close_prompt_windows()
         self._main = self._app.window(title="网上股票交易系统5.0")
+        logging.info('login函数登录成功')
+        return True
 
     def login3(self, user, password, exe_path, comm_password=None, **kwargs):
         """
@@ -278,16 +281,22 @@ class UniversalClientTrader(clienttrader.BaseLoginClientTrader):
             # print(user_login_window.PrintControlIdentifiers())
             self.wait(0.2)
             user_login_window.child_window(best_match='确定(&Y)Button').click_input()
-
             self.wait(6)
+        try:
             self._app = pywinauto.Application().connect(path=self._run_exe_path(exe_path), timeout=3)
-
+        except Exception as e:
+            logger.error('pywinauto连接同花顺错误：' + str(e))
+            return {'msg': 'login fail', 'error': str(e)}, False
+            pass
         self._close_prompt_windows()
         self._main = self._app.window(title="网上股票交易系统5.0")
+        return {'msg': 'login True', 'error': ''}, True
+
 
     def hangqing(self, name='行情->债券->可转债'):
         self._main.minimize()
         window = self.ths_app.window(title_re="同花顺(.*?)")
+        window.wait("ready", 2)
         left = window.rectangle().left
         top = window.rectangle().top
 
@@ -314,6 +323,7 @@ class UniversalClientTrader(clienttrader.BaseLoginClientTrader):
         time.sleep(0.1)
         item_left = export_window.rectangle().left
         item_top = export_window.rectangle().top
+
         pywinauto.mouse.click(button='left', coords=(item_left+284, item_top+30))
 
         curr_path = os.getcwd()

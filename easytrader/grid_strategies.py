@@ -79,6 +79,7 @@ class Copy(BaseStrategy):
         grid = self._get_grid(control_id)
         self._set_foreground(grid)
         self._trader.app.top_window().click_input(button='right')
+        self._trader.wait(0.2)
         self._trader.app.top_window().menu_item('复制').click_input()
         # exit()
         # grid.type_keys("^C", set_foreground=False)
@@ -115,7 +116,7 @@ class Copy(BaseStrategy):
                     if len(captcha_num) == 4:
                         curr_window.Edit.set_focus()
                         curr_window.Edit.click().type_keys("{RIGHT}" * 5).type_keys("{BACKSPACE}" * 5).type_keys(captcha_num)  # 模拟输入验证码
-                        self._trader.wait(0.1)
+                        self._trader.wait(0.2)
                         pywinauto.keyboard.send_keys("{ENTER}")  # 模拟发送enter，点击确定
                         if not curr_window.window(class_name="Static", title_re="验证码").exists(timeout=1):
                             found = True
